@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, BellRing, Trophy, RotateCcw, X, Megaphone, ArrowRight } from 'lucide-react';
+import { Bell, BellRing, Trophy, RotateCcw, X, Megaphone, ArrowRight, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { PATTERN_LABEL, generateCard, emptyMarked, winChecks } from '@/lib/bingo';
 
@@ -162,13 +162,24 @@ export default function PlayerPage() {
     return (
       <div className="min-h-screen bg-amber-50 text-stone-900">
         <div className="mx-auto max-w-md px-6 py-16">
-          <div className="border-b border-stone-900 pb-6">
-            <div className="font-serif text-5xl leading-none tracking-tight">
-              Bingo<span className="text-stone-400">.</span>
+          <div className="flex items-baseline justify-between border-b border-stone-900 pb-6">
+            <div>
+              <div className="font-serif text-5xl leading-none tracking-tight">
+                Bingo<span className="text-stone-400">.</span>
+              </div>
+              <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-stone-500">
+                Joining game · <span className="text-stone-900">{code}</span>
+              </div>
             </div>
-            <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-stone-500">
-              Joining game · <span className="text-stone-900">{code}</span>
-            </div>
+            <button
+              onClick={() => {
+                if (confirm('Go back to the start page?')) router.push('/');
+              }}
+              title="Home"
+              className="rounded-sm border border-stone-300 p-2 text-stone-500 hover:border-stone-900 hover:text-stone-900"
+            >
+              <Home className="h-3.5 w-3.5" />
+            </button>
           </div>
           <form onSubmit={handleJoin} className="mt-10 space-y-5">
             <div>
@@ -213,13 +224,24 @@ export default function PlayerPage() {
               Playing as <span className="text-stone-900">{player.name}</span> · {code}
             </div>
           </div>
-          <button
-            onClick={leaveGame}
-            className="rounded-sm border border-stone-300 p-2 text-stone-500 hover:border-stone-900 hover:text-stone-900"
-            title="Leave"
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (confirm('Go back to the start page? You can rejoin with the game code.')) router.push('/');
+              }}
+              className="rounded-sm border border-stone-300 p-2 text-stone-500 hover:border-stone-900 hover:text-stone-900"
+              title="Home"
+            >
+              <Home className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={leaveGame}
+              className="rounded-sm border border-stone-300 p-2 text-stone-500 hover:border-stone-900 hover:text-stone-900"
+              title="Leave"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 flex gap-1 rounded-sm border border-stone-300 p-1">

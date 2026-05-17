@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, ArrowRight, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { PATTERN_LABEL, shortCode } from '@/lib/bingo';
 
@@ -55,7 +55,12 @@ export default function Setup() {
   return (
     <div className="min-h-screen bg-amber-50 text-stone-900">
       <div className="mx-auto max-w-4xl px-6 py-10 md:px-12 md:py-16">
-        <Header step={1} />
+        <Header
+          step={1}
+          onHome={() => {
+            if (confirm('Go back to the start page? Your setup will be lost.')) router.push('/');
+          }}
+        />
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -219,14 +224,21 @@ export default function Setup() {
   );
 }
 
-function Header({ step }) {
+function Header({ step, onHome }) {
   const steps = ['Setup', 'Lobby', 'Play'];
   return (
     <div className="mb-12 flex items-baseline justify-between border-b border-stone-900 pb-6">
       <div>
-        <div className="font-serif text-5xl leading-none tracking-tight md:text-6xl">
-          Bingo<span className="text-stone-400">.</span>
-        </div>
+        <button
+          onClick={onHome}
+          className="group inline-flex items-baseline gap-3 text-left"
+          title="Home"
+        >
+          <span className="font-serif text-5xl leading-none tracking-tight md:text-6xl">
+            Bingo<span className="text-stone-400">.</span>
+          </span>
+          <Home className="h-4 w-4 self-center text-stone-400 transition-colors group-hover:text-stone-900" />
+        </button>
         <div className="mt-2 text-[10px] uppercase tracking-[0.3em] text-stone-500">Caller Console</div>
       </div>
       <div className="flex items-center gap-1.5">

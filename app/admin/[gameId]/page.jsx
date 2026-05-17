@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, AlertTriangle, ArrowLeft, Trophy, ShieldCheck, ShieldAlert, Megaphone } from 'lucide-react';
+import { Check, X, AlertTriangle, ArrowLeft, Trophy, ShieldCheck, ShieldAlert, Megaphone, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { PATTERN_LABEL, getPatternCells, findWinningLine } from '@/lib/bingo';
 
@@ -140,6 +140,14 @@ export default function AdminPage() {
       <div className="mx-auto max-w-6xl px-6 py-10 md:px-12 md:py-12">
         <div className="flex items-baseline justify-between border-b border-stone-900 pb-6">
           <div className="flex items-baseline gap-6">
+            <button
+              onClick={() => {
+                if (confirm('Leave the admin view and go home?')) router.push('/');
+              }}
+              className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-stone-500 hover:text-stone-900"
+            >
+              <Home className="h-3 w-3" /> Home
+            </button>
             <button
               onClick={() => router.push(`/caller/${code}`)}
               className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-stone-500 hover:text-stone-900"

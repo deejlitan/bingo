@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shuffle, RotateCcw, Trophy, Copy, Check, Eye, Users } from 'lucide-react';
+import { Shuffle, RotateCcw, Trophy, Copy, Check, Eye, Users, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { PATTERN_LABEL } from '@/lib/bingo';
 
@@ -169,6 +169,15 @@ export default function CallerPage() {
             <Stat label="Players" value={players.length} />
             <Stat label="Drawn" value={drawn.length} />
             <Stat label="Remaining" value={remaining.length} />
+            <button
+              onClick={() => {
+                if (confirm('Leave the caller console and go home? The game will keep running.')) router.push('/');
+              }}
+              title="Home"
+              className="rounded-sm border border-stone-300 p-2 text-stone-600 hover:border-stone-900 hover:text-stone-900"
+            >
+              <Home className="h-4 w-4" />
+            </button>
             <button
               onClick={() => router.push(`/admin/${code}`)}
               className="inline-flex items-center gap-2 rounded-sm border border-stone-300 px-3 py-2 text-xs uppercase tracking-[0.2em] hover:border-stone-900"
