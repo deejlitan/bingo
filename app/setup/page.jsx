@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Plus, Trash2, ArrowRight, Home } from 'lucide-react';
+import { Plus, Trash2, ArrowRight, Home, Upload } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { PATTERN_LABEL, shortCode } from '@/lib/bingo';
 
@@ -23,6 +23,33 @@ export default function Setup() {
   const [patterns, setPatterns] = useState({
     line: true, blackout: false, corners: false, x: false, t: false, plus: false,
   });
+  const fileInputRef = useRef(null);
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-uploading the same file
+    if (!file) return;
+    const text = await file.text();
+    const parsed = text
+      .split(/[\r\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parsed.length) return;
+    // De-duplicate against existing list (case-insensitive)
+    const existing = new Set(nameList.map((n) => n.toLowerCase()));
+    const fresh = parsed.filter((n) => {
+      const k = n.toLowerCase();
+      if (existing.has(k)) return false;
+      existing.add(k);
+      return true;
+    });
+    setNameList([...nameList, ...fresh]);
+  }
+
+  function clearAllNames() {
+    if (!nameList.length) return;
+    if (confirm(`Remove all ${nameList.length} names?`)) setNameList([]);
+  }
 
   const pool = useMemo(() => {
     if (charType === 'numbers') return Array.from({ length: numRangeMax }, (_, i) => String(i + 1));
@@ -164,6 +191,33 @@ export default function Setup() {
                       <Plus className="h-4 w-4" />
                     </button>
                   </div>
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".txt,.csv,text/plain,text/csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-sm border-2 border-stone-300 px-3 py-2 text-xs uppercase tracking-[0.2em] text-stone-600 hover:border-stone-900 hover:text-stone-900"
+                    >
+                      <Upload className="h-3.5 w-3.5" /> Upload file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAllNames}
+                      disabled={!nameList.length}
+                      className="inline-flex items-center justify-center gap-2 rounded-sm border-2 border-stone-300 px-3 py-2 text-xs uppercase tracking-[0.2em] text-stone-600 hover:border-red-500 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-stone-300 disabled:hover:text-stone-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Clear all
+                    </button>
+                  </div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-stone-400">
+                    Accepts .txt / .csv — one name per line or comma-separated
+                  </div>
                   <div className="max-h-40 overflow-y-auto rounded-sm border border-stone-200 p-2">
                     <div className="flex flex-wrap gap-1.5">
                       {nameList.map((n, i) => (
@@ -177,6 +231,9 @@ export default function Setup() {
                           </button>
                         </span>
                       ))}
+                      {!nameList.length && (
+                        <span className="text-xs text-stone-400">No names yet — add one above or upload a file.</span>
+                      )}
                     </div>
                   </div>
                 </div>

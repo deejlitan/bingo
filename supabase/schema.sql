@@ -32,6 +32,9 @@ create table players (
   joined_at timestamptz not null default now()
 );
 create index on players (game_id);
+-- One player name per game (case-insensitive, ignores surrounding whitespace)
+create unique index if not exists players_game_name_unique
+  on players (game_id, lower(btrim(name)));
 
 -- ─── CLAIMS ───
 create table claims (

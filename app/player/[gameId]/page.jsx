@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, BellRing, Trophy, RotateCcw, X, Megaphone, ArrowRight, Home } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { PATTERN_LABEL, generateCard, emptyMarked, winChecks } from '@/lib/bingo';
+import { fireConfetti } from '@/lib/confetti';
 
 export default function PlayerPage() {
   const { gameId: code } = useParams();
@@ -16,6 +17,7 @@ export default function PlayerPage() {
   const [player, setPlayer] = useState(null);
   const [name, setName] = useState('');
   const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState('');
 
   const [tab, setTab] = useState('card');
   const [latest, setLatest] = useState(null);
@@ -23,11 +25,18 @@ export default function PlayerPage() {
   const [won, setWon] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [claimSent, setClaimSent] = useState(false);
+  const [celebration, setCelebration] = useState(null);
+  const playerRef = useRef(null);
+  const seenVerified = useRef(new Set());
+
+  useEffect(() => {
+    playerRef.current = player;
+  }, [player]);
 
   // Load game
   useEffect(() => {
     let cancelled = false;
-    let channel;
+    let gameChannel, claimsChannel;
 
     async function load() {
       const { data: g } = await supabase.from('games').select('*').eq('code', code).maybeSingle();
@@ -45,8 +54,16 @@ export default function PlayerPage() {
         if (p && !cancelled) setPlayer(p);
       }
 
+      // Seed verified-claim set so existing wins don't re-fire on reload
+      const { data: existing } = await supabase
+        .from('claims')
+        .select('id, status')
+        .eq('game_id', g.id)
+        .eq('status', 'verified');
+      (existing || []).forEach((c) => seenVerified.current.add(c.id));
+
       // Subscribe to game updates (new draws)
-      channel = supabase
+      gameChannel = supabase
         .channel(`game:${g.id}:player`)
         .on(
           'postgres_changes',
@@ -63,12 +80,39 @@ export default function PlayerPage() {
           }
         )
         .subscribe();
+
+      // Subscribe to claim updates for win celebrations
+      claimsChannel = supabase
+        .channel(`claims:${g.id}:player`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'claims', filter: `game_id=eq.${g.id}` },
+          async (payload) => {
+            const row = payload.new;
+            if (!row || row.status !== 'verified' || seenVerified.current.has(row.id)) return;
+            seenVerified.current.add(row.id);
+            const { data: winner } = await supabase
+              .from('players')
+              .select('id, name')
+              .eq('id', row.player_id)
+              .maybeSingle();
+            const isSelf = playerRef.current && playerRef.current.id === row.player_id;
+            setCelebration({
+              name: winner?.name || 'Someone',
+              pattern: row.pattern,
+              isSelf,
+            });
+            fireConfetti();
+          }
+        )
+        .subscribe();
     }
 
     load();
     return () => {
       cancelled = true;
-      if (channel) supabase.removeChannel(channel);
+      if (gameChannel) supabase.removeChannel(gameChannel);
+      if (claimsChannel) supabase.removeChannel(claimsChannel);
     };
   }, [code, supabase, router]);
 
@@ -97,20 +141,39 @@ export default function PlayerPage() {
 
   async function handleJoin(e) {
     e.preventDefault();
-    if (!name.trim() || !game || joining) return;
+    const trimmed = name.trim();
+    if (!trimmed || !game || joining) return;
     setJoining(true);
+    setJoinError('');
+
+    // Pre-check: name already taken in this game (case-insensitive)
+    const { data: existing } = await supabase
+      .from('players')
+      .select('id')
+      .eq('game_id', game.id)
+      .ilike('name', trimmed)
+      .maybeSingle();
+    if (existing) {
+      setJoinError('That name is already taken in this game. Pick another.');
+      setJoining(false);
+      return;
+    }
+
     const card = generateCard(game.pool, game.grid_size);
     const marked = emptyMarked(game.grid_size);
     const { data, error } = await supabase
       .from('players')
-      .insert({ game_id: game.id, name: name.trim(), card, marked })
+      .insert({ game_id: game.id, name: trimmed, card, marked })
       .select()
       .single();
     if (data && !error) {
       localStorage.setItem(`bingo:${code}:player`, data.id);
       setPlayer(data);
+    } else if (error?.code === '23505') {
+      // Race: another player claimed this name between the pre-check and insert
+      setJoinError('That name was just taken. Pick another.');
     } else {
-      alert('Could not join. Please try again.');
+      setJoinError('Could not join. Please try again.');
     }
     setJoining(false);
   }
@@ -161,6 +224,7 @@ export default function PlayerPage() {
   if (!player) {
     return (
       <div className="min-h-screen bg-amber-50 text-stone-900">
+        <WinCelebration celebration={celebration} onClose={() => setCelebration(null)} />
         <div className="mx-auto max-w-md px-6 py-16">
           <div className="flex items-baseline justify-between border-b border-stone-900 pb-6">
             <div>
@@ -186,11 +250,19 @@ export default function PlayerPage() {
               <div className="mb-3 text-[10px] uppercase tracking-[0.3em] text-stone-500">Your Name</div>
               <input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (joinError) setJoinError('');
+                }}
                 placeholder="Type your name…"
                 autoFocus
-                className="w-full rounded-sm border-2 border-stone-300 bg-transparent px-4 py-3 font-serif text-xl focus:border-stone-900 focus:outline-none"
+                className={`w-full rounded-sm border-2 bg-transparent px-4 py-3 font-serif text-xl focus:outline-none ${
+                  joinError ? 'border-red-500 focus:border-red-600' : 'border-stone-300 focus:border-stone-900'
+                }`}
               />
+              {joinError && (
+                <div className="mt-2 text-xs text-red-600">{joinError}</div>
+              )}
             </div>
             <button
               type="submit"
@@ -214,6 +286,7 @@ export default function PlayerPage() {
 
   return (
     <div className="min-h-screen bg-amber-50 text-stone-900">
+      <WinCelebration celebration={celebration} onClose={() => setCelebration(null)} />
       <div className="mx-auto max-w-md px-5 pb-32 pt-8">
         <div className="flex items-baseline justify-between border-b border-stone-900 pb-4">
           <div>
@@ -421,5 +494,49 @@ export default function PlayerPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function WinCelebration({ celebration, onClose }) {
+  return (
+    <AnimatePresence>
+      {celebration && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/85 px-6"
+        >
+          <motion.div
+            initial={{ scale: 0.7, rotate: -3 }}
+            animate={{ scale: 1, rotate: 0 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 16 }}
+            className="relative w-full max-w-sm rounded-sm border-2 border-stone-900 bg-amber-50 p-8 text-center"
+          >
+            <button
+              onClick={onClose}
+              className="absolute right-3 top-3 text-stone-400 hover:text-stone-900"
+              title="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <Trophy className="mx-auto h-9 w-9 text-stone-900" />
+            <div className="mt-4 text-[10px] uppercase tracking-[0.3em] text-stone-500">
+              {celebration.isSelf ? 'You won' : 'Winner confirmed'}
+            </div>
+            <div className="mt-3 font-serif text-5xl leading-none tracking-tight">
+              {celebration.name}
+            </div>
+            <div className="mt-4 font-serif text-2xl text-stone-700">
+              Bingo<span className="text-stone-400">.</span>
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-[0.3em] text-stone-500">
+              {PATTERN_LABEL[celebration.pattern]}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
