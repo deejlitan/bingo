@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  background: #fffbeb;
+}
+
+/* Smooth tap on iOS */
+button { -webkit-tap-highlight-color: transparent; }
